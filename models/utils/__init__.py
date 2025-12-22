@@ -6,3 +6,5 @@ from .misc import (
     off_diagonal,
 )
 from .serialization import encode, decode
+
+from .pointnetvlad import NetVladWrapper, GeMWrapper, SOPWrapper, SALADWrapper

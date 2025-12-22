@@ -91,3 +91,84 @@ def point_collate_fn(batch, mix_prob=0):
 
 def gaussian_kernel(dist2: np.array, a: float = 1, c: float = 5):
     return a * np.exp(-dist2 / (2 * c**2))
+
+def in_sorted_array(e: int, array: np.ndarray) -> bool:
+    pos = np.searchsorted(array, e)
+    if pos == len(array) or pos == -1:
+        return False
+    else:
+        return array[pos] == e
+
+def wildplaces_collate_fn(batch, batch_split_size, mix_prob=0):
+    # Compute positives and negatives mask
+    # dataset.queries[label]['positives'] is bitarray
+    labels = [e['label'].item() for e in batch]
+    positives = [e['positives'].numpy() for e in batch]
+    non_negatives = [e['non_negatives'].numpy() for e in batch]
+    # print(f"type of positives: {type(positives[0])}")
+    # print(f"Time taken for labels, positives and non_negatives: {time.time() - start_time}")
+    positives_mask = [[in_sorted_array(e, d) for e in labels] for d in positives]
+    negatives_mask = [[not in_sorted_array(e, d) for e in labels] for d in non_negatives]
+    positives_mask = torch.tensor(positives_mask)
+    negatives_mask = torch.tensor(negatives_mask)
+    # print(f"Time taken for positives and negatives mask: {time.time() - start_time}")
+    # Generate batches in correct format
+
+    if batch_split_size is None or batch_split_size == 0:
+        data = point_collate_fn(batch, mix_prob)
+    else:
+        # 优化：先处理整个batch，再分割
+        # 而不是先分割再处理每个minibatch，避免重复调用point_collate_fn
+        full_batch = point_collate_fn(batch, mix_prob)
+        # print(f"Time taken for point_collate_fn: {time.time() - start_time}")
+        full_batch.pop("positives")
+        full_batch.pop("non_negatives")
+        
+        # 基于offset信息分割数据
+        data = []
+        offset = full_batch["offset"]
+        
+        # 计算每个样本的起始和结束索引
+        start_indices = [0] + offset[:-1].tolist()
+        end_indices = offset.tolist()
+        
+        # 按batch_split_size分组分割
+        for i in range(0, len(batch), batch_split_size):
+            end_idx = min(i + batch_split_size, len(batch))
+            
+            # 计算当前minibatch的起始和结束点云索引
+            minibatch_start = start_indices[i]
+            minibatch_end = end_indices[end_idx - 1]
+            
+            # 创建minibatch数据
+            minibatch = {}
+            for key, value in full_batch.items():
+                if key == "offset":
+                    # 重新计算offset：当前minibatch中每个样本的点数
+                    minibatch_offset = []
+                    current_offset = 0
+                    for j in range(i, end_idx):
+                        sample_points = end_indices[j] - start_indices[j]
+                        current_offset += sample_points
+                        minibatch_offset.append(current_offset)
+                    minibatch[key] = torch.tensor(minibatch_offset, dtype=offset.dtype, device=offset.device)
+                elif isinstance(value, torch.Tensor):
+                    if key in ["coord", "feat", "grid_coord"]:
+                        # 点云数据，需要按索引分割
+                        minibatch[key] = value[minibatch_start:minibatch_end]
+                    else:
+                        # 其他张量数据，按batch索引分割
+                        minibatch[key] = value[i:end_idx]
+                else:
+                    # 非张量数据，按batch索引分割
+                    minibatch[key] = value[i:end_idx]
+            
+            data.append(minibatch)
+
+    # print(f"Time taken for wildplaces_collate_fn: {time.time() - start_time}")
+
+    return {
+        "data": data,
+        "positives_mask": positives_mask,
+        "negatives_mask": negatives_mask,
+    }

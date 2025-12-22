@@ -536,3 +536,102 @@ class InsSegEvaluator(HookBase):
         self.trainer.logger.info("<<<<<<<<<<<<<<<<< End Evaluation <<<<<<<<<<<<<<<<<")
         self.trainer.comm_info["current_metric_value"] = all_ap_50  # save for saver
         self.trainer.comm_info["current_metric_name"] = "AP50"  # save for saver
+
+@HOOKS.register_module()
+class WildPlacesEvaluator(HookBase):
+    def __init__(self, write_cls_iou=False):
+        self.write_cls_iou = write_cls_iou
+
+    def before_train(self):
+        if self.trainer.writer is not None and self.trainer.cfg.enable_wandb:
+            wandb.define_metric("val/*", step_metric="Epoch")
+
+    def after_epoch(self):
+        if self.trainer.cfg.evaluate and ((self.trainer.epoch+1) % self.trainer.eval_interval_epoch == 0 or self.trainer.epoch == 0):
+            self.eval()
+
+    def eval(self):
+        self.trainer.logger.info(">>>>>>>>>>>>>>>> Start Evaluation >>>>>>>>>>>>>>>>")
+        self.trainer.model.eval()
+        for i, input_dict in enumerate(self.trainer.val_loader):
+            
+            batch = input_dict['data']
+            positives_mask = input_dict['positives_mask']
+            negatives_mask = input_dict['negatives_mask']
+
+            embeddings = None
+            embeddings_l = []
+            if isinstance(batch, list):
+                with torch.set_grad_enabled(False):
+                    for minibatch in batch:
+                        minibatch = {e: minibatch[e].cuda(non_blocking=True) for e in minibatch}
+                        y = self.trainer.model(minibatch)
+                        embeddings_l.append(y['global'])        
+
+                torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
+                embeddings = torch.cat(embeddings_l, dim=0)     
+            elif isinstance(batch, dict):
+                for key in batch.keys():
+                    if isinstance(batch[key], torch.Tensor):
+                        batch[key] = batch[key].cuda(non_blocking=True)
+                with torch.no_grad():
+                    y = self.trainer.model(batch)
+                    embeddings = y['global']
+
+                torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
+            else:
+                raise ValueError(f"Unsupported batch type: {type(batch)}")
+
+            input_dict['embeddings'] = embeddings
+            with torch.set_grad_enabled(False):
+                loss, stats = self.trainer.loss_fn.place_recognition_call(input_dict)
+                # stats = self.trainer.tensors_to_numbers(stats)
+            
+            if comm.get_world_size() > 1:
+                for e in stats.keys():
+                    dist.all_reduce(stats[e])
+            stats = {e: stats[e].cpu().numpy() for e in stats}
+
+            # Here there is no need to sync since sync happened in dist.all_reduce
+            for e in stats.keys():
+                self.trainer.storage.put_scalar(f"val_{e}", stats[e])
+
+            info = "Test: [{iter}/{max_iter}] ".format(
+                iter=i + 1, max_iter=len(self.trainer.val_loader)
+            )
+            self.trainer.logger.info(
+                info + "Loss {loss:.4f} ".format(loss=loss.item())
+            )
+        
+        avg_stats = {}
+        for e in stats.keys():
+            avg_stats[e] = self.trainer.storage.history(f"val_{e}").avg
+        self.trainer.logger.info(
+            "Val result: {stats}".format(stats=avg_stats)
+        )
+
+        current_epoch = self.trainer.epoch + 1
+        if self.trainer.writer is not None:
+            for e in avg_stats.keys():
+                self.trainer.writer.add_scalar(f"val/{e}", avg_stats[e], current_epoch)
+            # self.trainer.writer.add_scalars("val/stats", avg_stats, current_epoch)
+
+            if self.trainer.cfg.enable_wandb:
+                wandb_dict = {
+                    "Val/Epoch": current_epoch,
+                }
+                for e in avg_stats.keys():
+                    wandb_dict[f"val/{e}"] = float(avg_stats[e])
+                wandb.log(
+                    wandb_dict,
+                    step=wandb.run.step,
+                )
+
+        self.trainer.logger.info("<<<<<<<<<<<<<<<<< End Evaluation <<<<<<<<<<<<<<<<<")
+        self.trainer.comm_info["current_metric_value"] = avg_stats['ap']  # save for saver
+        self.trainer.comm_info["current_metric_name"] = "ap"  # save for saver
+
+    def after_train(self):
+        self.trainer.logger.info(
+            "Best {}: {:.4f}".format("AP", self.trainer.best_metric_value)
+        )
