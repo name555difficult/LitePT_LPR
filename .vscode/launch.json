@@ -12,7 +12,7 @@
             "program": "${workspaceFolder}/tools/train.py",
             "args": [
                 "--config-file",
-                "${workspaceFolder}/configs/wild_places/pr-ptv3_SALAD_unet.py",
+                "${workspaceFolder}/configs/wild_places/pt-ptv3_SALAD_unet.py",
                 "--num-gpus",
                 "1",
                 "--num-machines",

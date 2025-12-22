@@ -37,6 +37,7 @@ class DefaultDataset(Dataset):
         cache=False,
         ignore_index=-1,
         loop=1,
+        **kwargs,
     ):
         super(DefaultDataset, self).__init__()
         self.data_root = data_root

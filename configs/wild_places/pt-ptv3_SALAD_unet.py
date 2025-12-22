@@ -1,8 +1,8 @@
 _base_ = ["../_base_/default_runtime.py"]
 
 # misc custom setting
-num_workers = 4
-batch_size = 256  # bs: total bs in all gpus
+num_worker = 4
+batch_size = 2048  # bs: total bs in all gpus
 batch_split_size = 64
 batch_size_val = 64
 # batch_size_val = 64 
@@ -12,7 +12,7 @@ empty_cache = False
 enable_amp = False
 
 enable_wandb = False
-wandb_project = "PTv3LPR"  # custom your project name e.g. Sonata, PTv3
+wandb_project = "LitePT_LPR"  # custom your project name e.g. Sonata, PTv3
 
 # model settings
 model = dict(
@@ -48,14 +48,14 @@ model = dict(
     ),
     head=dict(
         type="SALAD",
-        feature_size=64,
+        feature_size=72,
         num_clusters=64,
         cluster_dim=64,
         token_dim=512,
         dropout=0.3,
         use_sinkhorn=True,
         coarse_cfg = dict(
-            feature_size=256,
+            feature_size=576,
             p=3,
             eps=1e-6,
         ),

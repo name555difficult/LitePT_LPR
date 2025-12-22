@@ -402,9 +402,12 @@ class LitePT(PointModule):
         point.sparsify()
 
         point = self.embedding(point)
-        point = self.enc(point)
+        enc_point = self.enc(point)
 
         if not self.enc_mode:
-            point = self.dec(point)
+            dec_point = self.dec(enc_point)
 
-        return point
+        if not self.enc_mode:
+            return enc_point, dec_point
+        else:
+            return enc_point
