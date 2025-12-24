@@ -60,6 +60,7 @@ model = dict(
             eps=1e-6,
         ),
     ),
+    default_grid_size = 0.025,
     criteria=[
         dict(type="TruncatedSmoothAP", tau1=0.01, positives_per_query=4),
     ],
@@ -116,19 +117,24 @@ data = dict(
             dict(type="RandomFlip", p=0.5),
             dict(type="RandomJitter", sigma=0.005, clip=0.02),
             # dict(type="ElasticDistortion", distortion_params=[[0.2, 0.4], [0.8, 1.6]]),
-            dict(
-                type="GridSample",
-                grid_size=0.05,
-                hash_type="fnv",
-                mode="train",
-                return_grid_coord=True,
-            ),
+            # dict(
+            #     type="GridSample",
+            #     grid_size=0.05,
+            #     hash_type="fnv",
+            #     mode="train",
+            #     return_grid_coord=True,
+            # ),
             # dict(type="SphereCrop", point_max=1000000, mode="random"),
             # dict(type="CenterShift", apply_z=False),
-            dict(type="ToTensor"),
+            # dict(type="ToTensor"),
+            # dict(
+            #     type="Collect",
+            #     keys=("coord", "grid_coord", "positives", "non_negatives", "label"),
+            #     feat_keys=("coord",),
+            # ),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "positives", "non_negatives", "label"),
+                keys=("coord", "positives", "non_negatives", "label"),
                 feat_keys=("coord",),
             ),
         ],
@@ -142,18 +148,18 @@ data = dict(
         transform=[
             # dict(type="PointClip", point_cloud_range=(-51.2, -51.2, -4, 51.2, 51.2, 2.4)),
             dict(type='NormalizeCoord'),
-            dict(
-                type="GridSample",
-                grid_size=0.05,
-                hash_type="fnv",
-                mode="train",
-                return_grid_coord=True,
-                return_inverse=True,
-            ),
+            # dict(
+            #     type="GridSample",
+            #     grid_size=0.05,
+            #     hash_type="fnv",
+            #     mode="train",
+            #     return_grid_coord=True,
+            #     return_inverse=True,
+            # ),
             dict(type="ToTensor"),
             dict(
                 type="Collect",
-                keys=("coord", "grid_coord", "positives", "non_negatives", "label"),
+                keys=("coord", "positives", "non_negatives", "label"),
                 feat_keys=("coord",),
             ),
         ],
@@ -171,6 +177,12 @@ data = dict(
         transform=[
             # dict(type="PointClip", point_cloud_range=(-51.2, -51.2, -4, 51.2, 51.2, 2.4)),
             dict(type='NormalizeCoord'),
+            dict(type="ToTensor"),
+            dict(
+                type="Collect",
+                keys=("coord",),
+                feat_keys=("coord", ),
+            ),
             # dict(type="Copy", keys_dict={"segment": "origin_segment"}),
             # dict(
             #     type="GridSample",
@@ -180,49 +192,49 @@ data = dict(
             #     return_inverse=True,
             # ),
         ],
-        test_mode=True,
-        test_cfg=dict(
-            voxelize=dict(
-                type="GridSample",
-                grid_size=0.025,
-                hash_type="fnv",
-                mode="test",
-                return_grid_coord=True,
-            ),
-            crop=None,
-            post_transform=[
-                dict(type="ToTensor"),
-                dict(
-                    type="Collect",
-                    keys=("coord", "grid_coord", "index"),
-                    feat_keys=("coord", ),
-                ),
-            ],
-            aug_transform=[
-                # [dict(type="RandomScale", scale=[0.9, 0.9])],
-                # [dict(type="RandomScale", scale=[0.95, 0.95])],
-                # [dict(type="RandomScale", scale=[1, 1])],
-                # [dict(type="RandomScale", scale=[1.05, 1.05])],
-                # [dict(type="RandomScale", scale=[1.1, 1.1])],
-                # [
-                #     dict(type="RandomScale", scale=[0.9, 0.9]),
-                #     dict(type="RandomFlip", p=1),
-                # ],
-                # [
-                #     dict(type="RandomScale", scale=[0.95, 0.95]),
-                #     dict(type="RandomFlip", p=1),
-                # ],
-                # [dict(type="RandomScale", scale=[1, 1]), dict(type="RandomFlip", p=1)],
-                # [
-                #     dict(type="RandomScale", scale=[1.05, 1.05]),
-                #     dict(type="RandomFlip", p=1),
-                # ],
-                # [
-                #     dict(type="RandomScale", scale=[1.1, 1.1]),
-                #     dict(type="RandomFlip", p=1),
-                # ],
-            ],
-        ),
+        test_mode=False,
+        # test_cfg=dict(
+        #     voxelize=dict(
+        #         type="GridSample",
+        #         grid_size=0.025,
+        #         hash_type="fnv",
+        #         mode="test",
+        #         return_grid_coord=True,
+        #     ),
+        #     crop=None,
+        #     post_transform=[
+        #         dict(type="ToTensor"),
+        #         dict(
+        #             type="Collect",
+        #             keys=("coord", "grid_coord", "index"),
+        #             feat_keys=("coord", ),
+        #         ),
+        #     ],
+        #     aug_transform=[
+        #         # [dict(type="RandomScale", scale=[0.9, 0.9])],
+        #         # [dict(type="RandomScale", scale=[0.95, 0.95])],
+        #         # [dict(type="RandomScale", scale=[1, 1])],
+        #         # [dict(type="RandomScale", scale=[1.05, 1.05])],
+        #         # [dict(type="RandomScale", scale=[1.1, 1.1])],
+        #         # [
+        #         #     dict(type="RandomScale", scale=[0.9, 0.9]),
+        #         #     dict(type="RandomFlip", p=1),
+        #         # ],
+        #         # [
+        #         #     dict(type="RandomScale", scale=[0.95, 0.95]),
+        #         #     dict(type="RandomFlip", p=1),
+        #         # ],
+        #         # [dict(type="RandomScale", scale=[1, 1]), dict(type="RandomFlip", p=1)],
+        #         # [
+        #         #     dict(type="RandomScale", scale=[1.05, 1.05]),
+        #         #     dict(type="RandomFlip", p=1),
+        #         # ],
+        #         # [
+        #         #     dict(type="RandomScale", scale=[1.1, 1.1]),
+        #         #     dict(type="RandomFlip", p=1),
+        #         # ],
+        #     ],
+        # ),
         # dense=True,
     ),
 )

@@ -817,29 +817,32 @@ class WildPlacesEvaluator(HookBase):
         self.trainer.model.eval()
         with torch.no_grad():
             for idx, input_dict in enumerate(self.test_loader):
-                assert type(input_dict) == list
-                embeddings_input = []
-                for j, data_part_dict in enumerate(input_dict):
-                    data_part_dict = point_collate_fn(data_part_dict)
-                    for key in data_part_dict.keys():
-                        if isinstance(data_part_dict[key], torch.Tensor):
-                            data_part_dict[key] = data_part_dict[key].cuda(non_blocking=True)
-                    
-                    y = self.trainer.model(data_part_dict)
-                    embedding_part = y['global'].detach().cpu().numpy()
-                    embedding_part = embedding_part.mean(axis=0)  # average pooling
-                    
-                    torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
-                    embeddings_input.append(embedding_part)
+                if type(input_dict) == list:
+                    embeddings_input = []
+                    for j, data_part_dict in enumerate(input_dict):
+                        data_part_dict = point_collate_fn(data_part_dict)
+                        for key in data_part_dict.keys():
+                            if isinstance(data_part_dict[key], torch.Tensor):
+                                data_part_dict[key] = data_part_dict[key].cuda(non_blocking=True)
+                        
+                        y = self.trainer.model(data_part_dict)
+                        embedding_part = y['global'].detach().cpu().numpy()
+                        embedding_part = embedding_part.mean(axis=0)  # average pooling
+                        
+                        torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
+                        embeddings_input.append(embedding_part)
 
-                embedding = np.stack(embeddings_input, axis=0)
-                # for key in input_dict.keys():
-                #     if isinstance(input_dict[key], torch.Tensor):
-                #         input_dict[key] = input_dict[key].cuda(non_blocking=True)
-                
-                # y = self.trainer.model(input_dict)
-                # embedding = y['global'].detach().cpu().numpy()
-                # torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
+                    embedding = np.stack(embeddings_input, axis=0)
+                elif isinstance(input_dict, dict):
+                    for key in input_dict.keys():
+                        if isinstance(input_dict[key], torch.Tensor):
+                            input_dict[key] = input_dict[key].cuda(non_blocking=True)
+                    
+                    y = self.trainer.model(input_dict)
+                    embedding = y['global'].detach().cpu().numpy()
+                    torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
+                else:
+                    raise TypeError(f"Unexpected input_dict type: {type(input_dict)}")
 
                 if embeddings is None:
                     embeddings = np.zeros((data_num, embedding.shape[1]), dtype=embedding.dtype)
@@ -1070,8 +1073,8 @@ class WildPlacesEvaluator(HookBase):
             num_workers=self.trainer.cfg.num_worker_per_gpu,
             pin_memory=True,
             sampler=test_sampler,
-            collate_fn=self.__class__.collate_fn,
-            # collate_fn=partial(point_collate_fn, mix_prob=self.trainer.cfg.mix_prob),
+            # collate_fn=self.__class__.collate_fn,
+            collate_fn=partial(point_collate_fn, mix_prob=self.trainer.cfg.mix_prob),
         )
         return test_loader
 
