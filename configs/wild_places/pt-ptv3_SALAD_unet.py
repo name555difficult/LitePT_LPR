@@ -1,10 +1,10 @@
 _base_ = ["../_base_/default_runtime.py"]
 
 # misc custom setting
-num_worker = 4
-batch_size = 2048  # bs: total bs in all gpus
-batch_split_size = 64
-batch_size_val = 64
+num_worker = 0
+batch_size = 20  # bs: total bs in all gpus
+batch_split_size = 10
+batch_size_val = 10
 # batch_size_val = 64 
 batch_size_test = batch_size_val
 mix_prob = 0
@@ -158,7 +158,7 @@ data = dict(
             ),
         ],
         test_mode=False,
-        dense=True,
+        # dense=True,
     ),
     test=dict(
         type='WildPlacesEvalDataset',
@@ -171,22 +171,58 @@ data = dict(
         transform=[
             # dict(type="PointClip", point_cloud_range=(-51.2, -51.2, -4, 51.2, 51.2, 2.4)),
             dict(type='NormalizeCoord'),
-            dict(
-                type="GridSample",
-                grid_size=0.05,
-                hash_type="fnv",
-                mode="train",
-                return_grid_coord=True,
-                return_inverse=True,
-            ),
-            dict(type="ToTensor"),
-            dict(
-                type="Collect",
-                keys=("coord", "grid_coord"),
-                feat_keys=("coord", ),
-            ),
+            # dict(type="Copy", keys_dict={"segment": "origin_segment"}),
+            # dict(
+            #     type="GridSample",
+            #     grid_size=0.025,
+            #     hash_type="fnv",
+            #     mode="train",
+            #     return_inverse=True,
+            # ),
         ],
-        test_mode=False,
+        test_mode=True,
+        test_cfg=dict(
+            voxelize=dict(
+                type="GridSample",
+                grid_size=0.025,
+                hash_type="fnv",
+                mode="test",
+                return_grid_coord=True,
+            ),
+            crop=None,
+            post_transform=[
+                dict(type="ToTensor"),
+                dict(
+                    type="Collect",
+                    keys=("coord", "grid_coord", "index"),
+                    feat_keys=("coord", ),
+                ),
+            ],
+            aug_transform=[
+                # [dict(type="RandomScale", scale=[0.9, 0.9])],
+                # [dict(type="RandomScale", scale=[0.95, 0.95])],
+                # [dict(type="RandomScale", scale=[1, 1])],
+                # [dict(type="RandomScale", scale=[1.05, 1.05])],
+                # [dict(type="RandomScale", scale=[1.1, 1.1])],
+                # [
+                #     dict(type="RandomScale", scale=[0.9, 0.9]),
+                #     dict(type="RandomFlip", p=1),
+                # ],
+                # [
+                #     dict(type="RandomScale", scale=[0.95, 0.95]),
+                #     dict(type="RandomFlip", p=1),
+                # ],
+                # [dict(type="RandomScale", scale=[1, 1]), dict(type="RandomFlip", p=1)],
+                # [
+                #     dict(type="RandomScale", scale=[1.05, 1.05]),
+                #     dict(type="RandomFlip", p=1),
+                # ],
+                # [
+                #     dict(type="RandomScale", scale=[1.1, 1.1]),
+                #     dict(type="RandomFlip", p=1),
+                # ],
+            ],
+        ),
         # dense=True,
     ),
 )
@@ -198,7 +234,12 @@ hooks = [
     dict(type="IterationTimer", warmup_iter=2),
     dict(type="InformationWriter"),
     # dict(type="SemSegEvaluator"),
-    dict(type="WildPlacesEvaluator"),
+    dict(type="WildPlacesEvaluator",
+        verbose=True,
+        skip_same_run=True,
+        eval_no_neighbors=False,
+        no_neighbors_sample_ratio=0.1,
+        auto_threshold_scale=1.0,),
     dict(type="CheckpointSaver", save_freq=None),
     # dict(type="PreciseEvaluator", test_last=False),
 ]

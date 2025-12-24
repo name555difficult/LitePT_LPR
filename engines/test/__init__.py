@@ -12,3 +12,4 @@ from .semsegtest import SemSegTester
 from .dino_semsegtest import DINOSemSegTester
 from .parsegtest import PartSegTester
 from .semsegtest_assemable import SemSegTester_Assemble
+from .wild_places import WildPlacesTester

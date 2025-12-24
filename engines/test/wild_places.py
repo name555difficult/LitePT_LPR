@@ -31,15 +31,13 @@ import wandb
 @TESTERS.register_module()
 class WildPlacesTester(TesterBase):
     def __init__(self, cfg, model=None, test_loader=None, verbose=False, 
-        skip_same_run=False, eval_no_neighbors=False, 
-        no_neighbors_sample_ratio=0.1, auto_threshold_scale=1.0
     ) -> None:
         test_loader = 1
         super().__init__(cfg, model, test_loader, verbose)
-        self.skip_same_run = skip_same_run
-        self.eval_no_neighbors = eval_no_neighbors
-        self.no_neighbors_sample_ratio = no_neighbors_sample_ratio
-        self.auto_threshold_scale = auto_threshold_scale
+        self.skip_same_run = cfg.test.skip_same_run
+        self.eval_no_neighbors = cfg.test.eval_no_neighbors
+        self.no_neighbors_sample_ratio = cfg.test.no_neighbors_sample_ratio
+        self.auto_threshold_scale = cfg.test.auto_threshold_scale
         self.pickle_files = self.cfg.data.test.pickle_files  # 需要在配置中设置或通过其他方式传入
         
     def test(self):
@@ -255,19 +253,36 @@ class WildPlacesTester(TesterBase):
         return database_embeddings, query_embeddings
 
     def model_calculation(self, data_num):
-        self.model.eval()
         embeddings = None
         offset = 0
-        
+
+        # return np.random.rand(data_num, 256).astype(np.float32)  # 临时返回随机向量，替代实际计算 for debug
+        self.model.eval()
         with torch.no_grad():
             for idx, input_dict in enumerate(self.test_loader):
-                for key in input_dict.keys():
-                    if isinstance(input_dict[key], torch.Tensor):
-                        input_dict[key] = input_dict[key].cuda(non_blocking=True)
+                assert type(input_dict) == list
+                embeddings_input = []
+                for j, data_part_dict in enumerate(input_dict):
+                    data_part_dict = point_collate_fn(data_part_dict)
+                    for key in data_part_dict.keys():
+                        if isinstance(data_part_dict[key], torch.Tensor):
+                            data_part_dict[key] = data_part_dict[key].cuda(non_blocking=True)
+                    
+                    y = self.model(data_part_dict)
+                    embedding_part = y['global'].detach().cpu().numpy()
+                    embedding_part = embedding_part.mean(axis=0)  # average pooling
+                    
+                    torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
+                    embeddings_input.append(embedding_part)
+
+                embedding = np.stack(embeddings_input, axis=0)
+                # for key in input_dict.keys():
+                #     if isinstance(input_dict[key], torch.Tensor):
+                #         input_dict[key] = input_dict[key].cuda(non_blocking=True)
                 
-                y = self.model(input_dict)
-                embedding = y['global'].detach().cpu().numpy()
-                torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
+                # y = self.trainer.model(input_dict)
+                # embedding = y['global'].detach().cpu().numpy()
+                # torch.cuda.empty_cache()  # Prevent excessive GPU memory consumption by SparseTensors
 
                 if embeddings is None:
                     embeddings = np.zeros((data_num, embedding.shape[1]), dtype=embedding.dtype)
@@ -276,6 +291,7 @@ class WildPlacesTester(TesterBase):
                 offset += embedding.shape[0]
 
         return embeddings
+
 
     def get_recall(self, m, n, database_vectors, query_vectors, query_sets, database_sets,
                 log=False, model_name: str = 'model'):
@@ -497,8 +513,8 @@ class WildPlacesTester(TesterBase):
             num_workers=self.cfg.num_worker_per_gpu,
             pin_memory=True,
             sampler=test_sampler,
-            # collate_fn=self.__class__.collate_fn,
-            collate_fn=partial(point_collate_fn, mix_prob=self.cfg.mix_prob),
+            collate_fn=self.__class__.collate_fn,
+            # collate_fn=partial(point_collate_fn, mix_prob=self.cfg.mix_prob),
         )
         return test_loader
 

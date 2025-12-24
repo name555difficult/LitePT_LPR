@@ -94,6 +94,8 @@ class WildPlacesTrainer(Trainer):
             self.after_train()
 
     def before_epoch(self):
+        super().after_epoch()
+        
         if self.cfg.model.head.type == "GeM":
             for p in self.model.head.parameters():
                 p.requires_grad = False

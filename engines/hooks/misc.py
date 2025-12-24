@@ -22,10 +22,10 @@ from utils.comm import is_main_process, synchronize
 from utils.cache import shared_dict
 from utils.scheduler import CosineScheduler
 import utils.comm as comm
-from engines.test import TESTERS
 
 from .default import HookBase
 from .builder import HOOKS
+# from engines.test import TESTERS
 
 
 AMP_DTYPE = dict(
@@ -295,34 +295,34 @@ class CheckpointLoader(HookBase):
 
 
 
-@HOOKS.register_module()
-class PreciseEvaluator(HookBase):
-    def __init__(self, test_last=False):
-        self.test_last = test_last
+# @HOOKS.register_module()
+# class PreciseEvaluator(HookBase):
+#     def __init__(self, test_last=False):
+#         self.test_last = test_last
 
-    def after_train(self):
-        self.trainer.logger.info(
-            ">>>>>>>>>>>>>>>> Start Precise Evaluation >>>>>>>>>>>>>>>>"
-        )
-        torch.cuda.empty_cache()
-        cfg = self.trainer.cfg
-        tester = TESTERS.build(
-            dict(type=cfg.test.type, cfg=cfg, model=self.trainer.model)
-        )
-        if self.test_last:
-            self.trainer.logger.info("=> Testing on model_last ...")
-        else:
-            self.trainer.logger.info("=> Testing on model_best ...")
-            best_path = os.path.join(
-                self.trainer.cfg.save_path, "model", "model_best.pth"
-            )
-            self.trainer.logger.info(f"Loading weight at: {best_path}")
-            checkpoint = torch.load(best_path, weights_only=False)
-            state_dict = checkpoint["state_dict"]
-            load_state_info = tester.model.load_state_dict(state_dict, strict=True)
-            self.trainer.logger.info(f"Missing keys: {load_state_info[0]}")
-            self.trainer.logger.info(f"Unexpected keys: {load_state_info[1]}")
-        tester.test()
+#     def after_train(self):
+#         self.trainer.logger.info(
+#             ">>>>>>>>>>>>>>>> Start Precise Evaluation >>>>>>>>>>>>>>>>"
+#         )
+#         torch.cuda.empty_cache()
+#         cfg = self.trainer.cfg
+#         tester = TESTERS.build(
+#             dict(type=cfg.test.type, cfg=cfg, model=self.trainer.model)
+#         )
+#         if self.test_last:
+#             self.trainer.logger.info("=> Testing on model_last ...")
+#         else:
+#             self.trainer.logger.info("=> Testing on model_best ...")
+#             best_path = os.path.join(
+#                 self.trainer.cfg.save_path, "model", "model_best.pth"
+#             )
+#             self.trainer.logger.info(f"Loading weight at: {best_path}")
+#             checkpoint = torch.load(best_path, weights_only=False)
+#             state_dict = checkpoint["state_dict"]
+#             load_state_info = tester.model.load_state_dict(state_dict, strict=True)
+#             self.trainer.logger.info(f"Missing keys: {load_state_info[0]}")
+#             self.trainer.logger.info(f"Unexpected keys: {load_state_info[1]}")
+#         tester.test()
 
 
 @HOOKS.register_module()

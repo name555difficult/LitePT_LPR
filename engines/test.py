@@ -7,6 +7,7 @@ from .test import (
     DINOSemSegTester,
     PartSegTester,
     SemSegTester_Assemble,
+    WildPlacesTester,
 )
 
 # export class arguments
@@ -18,4 +19,5 @@ __all__ = [
     'DINOSemSegTester',
     'PartSegTester',
     'SemSegTester_Assemble',
+    'WildPlacesTester'
 ]

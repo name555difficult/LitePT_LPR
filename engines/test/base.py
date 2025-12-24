@@ -9,7 +9,6 @@ import torch.utils.data
 
 from ..defaults import create_ddp_model
 import utils.comm as comm
-from datasets import build_dataset, collate_fn
 from models import build_model
 from utils.logger import get_root_logger
 from utils.registry import Registry
@@ -81,6 +80,7 @@ class TesterBase:
         return model
 
     def build_test_loader(self):
+        from datasets import build_dataset
         test_dataset = build_dataset(self.cfg.data.test)
         if comm.get_world_size() > 1:
             test_sampler = torch.utils.data.distributed.DistributedSampler(test_dataset)
@@ -102,4 +102,5 @@ class TesterBase:
 
     @staticmethod
     def collate_fn(batch):
+        from datasets import collate_fn
         raise collate_fn(batch)

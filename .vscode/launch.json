@@ -33,5 +33,35 @@
             "justMyCode": true,
             "stopOnEntry": false
         },
+
+        {
+            "name": "Python Debugger: test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tools/test.py",
+            "args": [
+                "--config-file",
+                "${workspaceFolder}/configs/wild_places/pt-ptv3_SALAD_unet.py",
+                "--num-gpus",
+                "1",
+                "--num-machines",
+                "1",
+                "--machine-rank",
+                "0",
+                "--dist-url",
+                "auto",
+                "--options",
+                "save_path=exp/wild_places/debug",
+                "weight=exp/wild_places/pt-ptv3_SALAD_unet/model/model_best.pth",
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "PYTHONPATH": "${workspaceFolder}",
+            },
+            "justMyCode": true,
+            "stopOnEntry": false
+        },
     ]
 }

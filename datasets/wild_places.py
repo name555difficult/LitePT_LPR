@@ -1,4 +1,5 @@
 
+from copy import deepcopy
 import os
 import pickle
 import numpy as np  
@@ -114,6 +115,43 @@ class WildPlacesEvalDataset(DefaultDataset):
         )
 
         return data_dict
+
+    def prepare_test_data(self, idx):
+        # load data
+        data_dict = self.get_data(idx)
+        data_dict = self.transform(data_dict)
+        result_dict = dict()
+        if "origin_segment" in data_dict:
+            assert "inverse" in data_dict
+            result_dict["origin_segment"] = data_dict.pop("origin_segment")
+            result_dict["inverse"] = data_dict.pop("inverse")
+
+        data_dict_list = []
+        if len(self.aug_transform) == 0:
+            data_dict_list = [data_dict]
+        else:
+            data_dict_list = [data_dict]
+            for aug in self.aug_transform:
+                data_dict_list.append(aug(deepcopy(data_dict)))
+
+        fragment_list = []
+        for data in data_dict_list:
+            if self.test_voxelize is not None:
+                data_part_list = self.test_voxelize(data)
+            else:
+                data["index"] = np.arange(data["coord"].shape[0])
+                data_part_list = [data]
+            for data_part in data_part_list:
+                if self.test_crop is not None:
+                    data_part = self.test_crop(data_part)
+                else:
+                    data_part = [data_part]
+                fragment_list += data_part
+
+        for i in range(len(fragment_list)):
+            fragment_list[i] = self.post_transform(fragment_list[i])
+        
+        return fragment_list
 
     def get_data_name(self, idx):
         # return data name for lidar seg, optimize the code when need to support detection
